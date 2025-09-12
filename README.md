@@ -1,1 +1,3 @@
 # toxic-hammer
+
+Silent Auction Poison Pill is a time-boxed silent-auction platform where each user can place only one bid per item. The twist lies in the poison-bid mechanic: bidders can mark their bid as “auto-raise,” allowing the system to automatically outbid higher offers incrementally until their budget is exhausted. This creates a dynamic and adversarial bidding environment, emphasizing real-time updates, strategic planning, and concurrency challenges
