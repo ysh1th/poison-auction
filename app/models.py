@@ -28,3 +28,13 @@ class Item(Base):
     status = Column(String, default="open")
     created_at = Column(DateTime, default=func.now())
 
+class Bid(Base):
+    __tablename__ = "bids"
+    id = Column(Integer, primary_key=True, index=True)
+    item_id = Column(Integer, ForeignKey("items.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    amount = Column(Float)
+    poison_budget = Column(Float, nullable=True)
+    poison_step = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=func.now())
+    __table_args__ = (UniqueConstraint("item_id", "user_id", name="unique_bid"),)
