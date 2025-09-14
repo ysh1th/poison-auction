@@ -17,3 +17,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
+async def require_role(role: str):
+    async def role_checker(user=Depends(get_current_user)):
+        if user.role.value != role and user.role.value != "admin":
+            raise HTTPException(status_code=403, detail=f'{role.capitalize()} role required')
+        return user
+    return role_checker
