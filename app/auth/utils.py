@@ -1,13 +1,13 @@
 from fastapi import HTTPException, status
 from jose import jwt, JWTError
-from passlib.context import Argon2Context
+from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
 import redis.asyncio as redis
 import uuid
 from app.core.config import settings
-from app.core.redis import redis_client
+import app.core.redis as redis_module
 
-pwd_context = Argon2Context(schemes=["argon2id"])
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 async def create_access_token(data: dict):
     to_encode = data.copy()
@@ -26,10 +26,16 @@ async def create_refresh_token(data: dict):
     return token, jti
 
 async def blacklist_token(jti: str, ttl_seconds: int):
-    await redis_client.setex(f'blacklist: {jti}', ttl_seconds, '1')
+    try:
+        await redis_module.redis_client.setex(f'blacklist:{jti}', ttl_seconds, '1')
+    except Exception:
+        return
 
 async def is_token_blacklisted(jti: str) -> bool:
-    return await redis_client.exists(f'blacklist: {jti}')
+    try:
+        return await redis_module.redis_client.exists(f'blacklist:{jti}')
+    except Exception:
+        return False
 
 async def verify_token(token: str, token_type: str):
     try:

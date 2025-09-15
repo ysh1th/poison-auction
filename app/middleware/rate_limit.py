@@ -1,21 +1,37 @@
-from fastapi import Request, HTTPException
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-from app.core.config import settings
-from app.auth.dependencies import get_current_user
+import app.core.redis as redis_module
 
-limiter = Limiter(key_func=get_remote_address, storage_uri=settings.redis_url)
+async def sliding_window_allow(key: str, limit: int, window_seconds: int) -> bool:
+    now = int(__import__('time').time())
+    window_start = now - window_seconds
+    try:
+        client = redis_module.redis_client
+        pipe = client.pipeline()
+        pipe.zremrangebyscore(key, 0, window_start)
+        pipe.zadd(key, {str(now): now})
+        pipe.zcard(key)
+        pipe.expire(key, window_seconds)
+        _, _, count, _ = await pipe.execute()
+        return count <= limit
+    except Exception:
+        return True
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        try:
-            user = await get_current_user(request.headers.get('Authorization', '').replace('Bearer', ''), request.app.state.db)
-            request.state.user = user
-        except:
-            user = None
-        if request.url.path.startswith('/api/items'):
-            if user:
-                await limiter.limit('3/minute', key=f'user:{user.id}')(request)
-            await limiter.limit('10/10seconds')(request)
+        ip = request.client.host if request.client else 'unknown'
+        global_key = f"rl:ip:{ip}:10in10"
+        if not await sliding_window_allow(global_key, 10, 10):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=429, detail="Too many requests")
+
+        is_write = request.method in {"POST", "PUT", "PATCH", "DELETE"}
+        if is_write and request.url.path.startswith('/items'):
+            user_id = getattr(getattr(request.state, 'user', None), 'id', None)
+            if user_id is not None:
+                user_key = f"rl:user:{user_id}:3in60"
+                if not await sliding_window_allow(user_key, 3, 60):
+                    from fastapi import HTTPException
+                    raise HTTPException(status_code=429, detail="Write rate limit exceeded")
+
         return await call_next(request)
