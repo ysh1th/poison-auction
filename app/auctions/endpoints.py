@@ -9,12 +9,12 @@ router = APIRouter(prefix='/items', tags=['auctions'])
 
 class BidIn(BaseModel):
     amount: float
-    poison_budget: float | None = None
-    poison_step: float | None = None
+    max_budget: float | None = None
+    bid_increment: float | None = None
 
 @router.post('/{item_id}/bid')
 async def bid(item_id: int, body: BidIn, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
-    result = await place_bid(db, item_id, user.id, body.amount, body.poison_budget, body.poison_step)
+    result = await place_bid(db, item_id, user.id, body.amount, body.max_budget, body.bid_increment)
     await db.commit()
     return result
 

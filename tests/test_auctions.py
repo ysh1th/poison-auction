@@ -19,7 +19,7 @@ def test_basic_poison_competition(client):
     t2 = auth_tokens(client, "c2@example.com")
     h1 = {"Authorization": f"Bearer {t1['access_token']}"}
     h2 = {"Authorization": f"Bearer {t2['access_token']}"}
-    client.post('/items/2/bid', json={"amount": 10, "poison_budget": 20, "poison_step": 1}, headers=h1)
+    client.post('/items/2/bid', json={"amount": 10, "max_budget": 20, "bid_increment": 1}, headers=h1)
     r = client.post('/items/2/bid', json={"amount": 15}, headers=h2)
     assert r.status_code in (200, 400, 404)
 

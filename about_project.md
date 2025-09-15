@@ -37,7 +37,7 @@ Entity diagram (PostgreSQL)
 ```
 users          (id, email, pw_hash, role, created_at)
 items          (id, title, desc, close_at, base_price, status)
-bids           (id, item_id, user_id, amount, poison_budget, poison_step, created_at)
+bids           (id, item_id, user_id, amount, max_budget, bid_increment, created_at)
                UNIQUE (item_id, user_id)  -- enforces single bid
 blacklist      (jti, exp)                 -- Redis SET, TTL driven
 
