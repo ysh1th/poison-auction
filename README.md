@@ -24,7 +24,7 @@ Run database
 - Local Postgres recommended via Docker Compose
 
 ```bash
-docker compose up -d postgres redis
+docker compose up -d
 alembic upgrade head
 ```
 

@@ -13,24 +13,19 @@ async def fetch_item_for_update(db: AsyncSession, item_id: int) -> Item:
     res = await db.execute(stmt)
     return res.scalars().first()
 
-def ensure_item_open(item: Item) -> None:
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
-    now = datetime.now(timezone.utc)
-    if item.status != "open" or (item.close_at and item.close_at <= now):
-        raise HTTPException(status_code=400, detail="Auction closed")
-
 async def fetch_bids_for_update(db: AsyncSession, item_id: int) -> list[Bid]:
+    """Retrieves all bids for an item with row locks"""
     stmt = select(Bid).where(Bid.item_id == item_id).with_for_update()
     res = await db.execute(stmt)
     return list(res.scalars().all())
 
-def ensure_single_bid_per_user(bids: list[Bid], user_id: int) -> None:
+def check_bid_placed(bids: list[Bid], user_id: int) -> None:
     for bid in bids:
         if bid.user_id == user_id:
             raise HTTPException(status_code=409, detail="User already placed a bid for this item")
 
 def max_cap(bid: Bid) -> float:
+    """Calculates a bid’s maximum cap using max_budget or amount"""
     return float(bid.max_budget) if bid.max_budget is not None else bid.amount
 
 def compute_winner(bids: list[Bid], user_id: int, amount: float, max_budget: float | None, bid_increment: float | None) -> tuple[int, float, float | None, float | None]:
@@ -61,6 +56,7 @@ def compute_winner(bids: list[Bid], user_id: int, amount: float, max_budget: flo
     return winner_user_id, winner_amount, new_max_budget, new_bid_increment
 
 def apply_bid_mutation(db: AsyncSession, bids: list[Bid], item_id: int, winner_user_id: int, actor_user_id: int, winner_amount: float, max_budget: float | None, bid_increment: float | None) -> None:
+    """Applies the winning bid by creating or updating a bid in the database"""
     if winner_user_id == actor_user_id:
         bid = Bid(item_id=item_id, user_id=actor_user_id, amount=winner_amount, max_budget=max_budget, bid_increment=bid_increment)
         db.add(bid)
@@ -72,9 +68,16 @@ def apply_bid_mutation(db: AsyncSession, bids: list[Bid], item_id: int, winner_u
 
 async def place_bid(db: AsyncSession, item_id: int, user_id: int, amount: float, max_budget: float | None, bid_increment: float | None) -> dict:
     item = await fetch_item_for_update(db, item_id)
-    ensure_item_open(item)
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    now = datetime.now(timezone.utc)
+
+    if item.status != "open" or (item.close_at and item.close_at <= now):
+        raise HTTPException(status_code=400, detail="Auction closed")
+
     bids = await fetch_bids_for_update(db, item_id)
-    ensure_single_bid_per_user(bids, user_id)
+    check_bid_placed(bids, user_id)
     winner_user_id, winner_amount, new_max_budget, new_bid_increment = compute_winner(bids, user_id, amount, max_budget, bid_increment)
     apply_bid_mutation(db, bids, item_id, winner_user_id, user_id, winner_amount, new_max_budget, new_bid_increment)
     await db.flush()
