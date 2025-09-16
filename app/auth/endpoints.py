@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.db import get_db
 from app.models import User, Role
+from app.models import OwnedItem
 from app.auth.utils import hash_password, verify_password, create_access_token, create_refresh_token, blacklist_token, verify_token
 from app.auth.dependencies import oauth2_scheme
 from pydantic import BaseModel
@@ -68,3 +69,26 @@ async def logout(token: str = Depends(oauth2_scheme)):
     ttl_seconds = max(0, int(payload["exp"]) - now_ts)
     await blacklist_token(payload["jti"], ttl_seconds)
     return {"detail": "Logged out"}
+
+@router.get('/inventory')
+async def my_inventory(db: AsyncSession = Depends(get_db), token: str = Depends(oauth2_scheme)):
+    payload = await verify_token(token, "access")
+    result = await db.execute(select(User).filter(User.email == payload["sub"]))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=401, detail='Invalid user')
+    res = await db.execute(select(OwnedItem).where(OwnedItem.user_id == user.id))
+    items = list(res.scalars().all())
+    return [
+        {
+            "id": oi.id,
+            "item_id": oi.item_id,
+            "image_url": oi.image_url,
+            "image_thumb_url": oi.image_thumb_url,
+            "image_attribution": oi.image_attribution,
+            "image_attribution_link": oi.image_attribution_link,
+            "unsplash_id": oi.unsplash_id,
+            "acquired_at": oi.acquired_at.isoformat() if oi.acquired_at else None,
+        }
+        for oi in items
+    ]

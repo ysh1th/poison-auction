@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 7
     redis_url: str = "redis://localhost:6379"
     database_url: str
+    unsplash_access_key: str | None = None
+    unsplash_secret_key: str | None = None
 
     class Config:
         env_file = ".env"

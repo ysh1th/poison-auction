@@ -18,3 +18,4 @@ faker==19.6.2
 alembic==1.12.1
 asyncpg==0.30.0
 httpx==0.25.2
+python-dotenv==1.0.1

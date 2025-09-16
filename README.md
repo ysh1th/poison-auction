@@ -33,6 +33,17 @@ Run API
 uvicorn main:app --reload
 ```
 
+## Frontend test UI (optional)
+Simple Vite + React app to exercise auth, countdown, bidding, closing, and inventory.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Vite dev server runs at http://localhost:5173 and proxies API to http://localhost:8000.
+
 ## Rate limiting and request IDs
 - Request IDs added to every response header `X-Request-ID`
 - Global rate-limit: 10 requests per IP per 10s

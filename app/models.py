@@ -14,7 +14,7 @@ class User(Base):
     id = Column(Integer, primary_key = True, index=True)
     email = Column(String, unique=True, index=True)
     pw_hash = Column(String)
-    role = Column(Enum(Role), default=Role.VIEWER)
+    role = Column(Enum(Role, native_enum=False), default=Role.VIEWER)
     created_at = Column(DateTime, default=func.now())
 
 
@@ -22,11 +22,21 @@ class Item(Base):
     __tablename__ = "items"
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, index=True)
-    desc = Column(String)
+    description = Column(String)
     close_at = Column(DateTime)
     base_price = Column(Float)
     status = Column(String, default="open")
     created_at = Column(DateTime, default=func.now())
+    image_id = Column(Integer, ForeignKey("images.id"), nullable=True)
+
+class Image(Base):
+    __tablename__ = "images"
+    id = Column(Integer, primary_key=True, index=True)
+    unsplash_id = Column(String, unique=True, nullable=True, index=True)
+    image_url = Column(String, nullable=True)
+    image_thumb_url = Column(String, nullable=True)
+    image_attribution = Column(String, nullable=True)
+    image_attribution_link = Column(String, nullable=True)
 
 class Bid(Base):
     __tablename__ = "bids"
@@ -38,3 +48,16 @@ class Bid(Base):
     bid_increment = Column(Float, nullable=True)
     created_at = Column(DateTime, default=func.now())
     __table_args__ = (UniqueConstraint("item_id", "user_id", name="unique_bid"),)
+
+class OwnedItem(Base):
+    __tablename__ = "owned_items"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    item_id = Column(Integer, ForeignKey("items.id"), index=True)
+    acquired_at = Column(DateTime, default=func.now())
+    # Snapshot of image data
+    image_url = Column(String, nullable=True)
+    image_thumb_url = Column(String, nullable=True)
+    image_attribution = Column(String, nullable=True)
+    image_attribution_link = Column(String, nullable=True)
+    unsplash_id = Column(String, nullable=True)
