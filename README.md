@@ -4,8 +4,8 @@ Silent Auction Poison Pill is a time-boxed silent-auction platform where each us
 
 ## Prerequisites
 - Python 3.10+
-- Node.js 18+ and pnpm (for frontend if/when added)
-- Docker (optional, for running Postgres and Redis via compose)
+- Node.js 18+ and pnpm
+- Docker (for running Postgres and Redis via compose)
 
 ## Backend setup (local)
 ```bash
