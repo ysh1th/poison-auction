@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.db import get_db
 from app.models import User, Role
-from app.models import OwnedItem
+from app.models import OwnedItem, Item, Image
 from app.auth.utils import hash_password, verify_password, create_access_token, create_refresh_token, blacklist_token, verify_token
 from app.auth.dependencies import oauth2_scheme
 from pydantic import BaseModel
@@ -32,11 +32,12 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
         role_value = Role[user.role.upper()]
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid role")
-    db_user = User(email=user.email, pw_hash=hash_password(user.password), role=role_value)
+    # Credit 500 units to new users
+    db_user = User(email=user.email, pw_hash=hash_password(user.password), role=role_value, balance=500.0)
     db.add(db_user)
     await db.commit()
     await db.refresh(db_user)
-    return {"email": db_user.email, "role": db_user.role}
+    return {"email": db_user.email, "role": db_user.role.value if hasattr(db_user.role, 'value') else str(db_user.role), "balance": db_user.balance}
 
 @router.post('/login', response_model=TokenResponse)
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
@@ -79,16 +80,34 @@ async def my_inventory(db: AsyncSession = Depends(get_db), token: str = Depends(
         raise HTTPException(status_code=401, detail='Invalid user')
     res = await db.execute(select(OwnedItem).where(OwnedItem.user_id == user.id))
     items = list(res.scalars().all())
-    return [
-        {
+    out = []
+    for oi in items:
+        image_url = oi.image_url
+        image_thumb_url = oi.image_thumb_url
+        image_attribution = oi.image_attribution
+        image_attribution_link = oi.image_attribution_link
+        unsplash_id = oi.unsplash_id
+        if not (image_url or image_thumb_url):
+            # Fallback to current Item->Image
+            res_item = await db.execute(select(Item).where(Item.id == oi.item_id))
+            it = res_item.scalars().first()
+            if it and it.image_id:
+                res_img = await db.execute(select(Image).where(Image.id == it.image_id))
+                img = res_img.scalars().first()
+                if img:
+                    image_url = image_url or img.image_url
+                    image_thumb_url = image_thumb_url or img.image_thumb_url
+                    image_attribution = image_attribution or img.image_attribution
+                    image_attribution_link = image_attribution_link or img.image_attribution_link
+                    unsplash_id = unsplash_id or img.unsplash_id
+        out.append({
             "id": oi.id,
             "item_id": oi.item_id,
-            "image_url": oi.image_url,
-            "image_thumb_url": oi.image_thumb_url,
-            "image_attribution": oi.image_attribution,
-            "image_attribution_link": oi.image_attribution_link,
-            "unsplash_id": oi.unsplash_id,
+            "image_url": image_url,
+            "image_thumb_url": image_thumb_url,
+            "image_attribution": image_attribution,
+            "image_attribution_link": image_attribution_link,
+            "unsplash_id": unsplash_id,
             "acquired_at": oi.acquired_at.isoformat() if oi.acquired_at else None,
-        }
-        for oi in items
-    ]
+        })
+    return out

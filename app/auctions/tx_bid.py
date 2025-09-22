@@ -73,11 +73,26 @@ async def place_bid(db: AsyncSession, item_id: int, user_id: int, amount: float,
         raise HTTPException(status_code=404, detail="Item not found")
     now = datetime.now(timezone.utc)
 
-    if item.status != "open" or (item.close_at and item.close_at <= now):
-        raise HTTPException(status_code=400, detail="Auction closed")
+    # Enforce lifecycle: bids only while in_progress window is active
+    start_at = item.start_at
+    end_at = item.end_at
+    if start_at is not None and start_at.tzinfo is None:
+        start_at = start_at.replace(tzinfo=timezone.utc)
+    if end_at is not None and end_at.tzinfo is None:
+        end_at = end_at.replace(tzinfo=timezone.utc)
+    if not start_at or not end_at:
+        raise HTTPException(status_code=400, detail="Auction not scheduled correctly")
+    if not (start_at <= now < end_at):
+        raise HTTPException(status_code=400, detail="Bidding not allowed at this time")
 
     bids = await fetch_bids_for_update(db, item_id)
     check_bid_placed(bids, user_id)
+
+    # First bid must meet min_start_price
+    if not bids:
+        if float(amount) < float(item.min_start_price or 0.0):
+            raise HTTPException(status_code=400, detail="Bid below minimum start price")
+
     winner_user_id, winner_amount, new_max_budget, new_bid_increment = compute_winner(bids, user_id, amount, max_budget, bid_increment)
     apply_bid_mutation(db, bids, item_id, winner_user_id, user_id, winner_amount, new_max_budget, new_bid_increment)
     await db.flush()
